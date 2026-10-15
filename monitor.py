@@ -81,9 +81,13 @@ def tg(text):
         print("[tg disabled]\n" + text)
         return
     try:
-        S.post(f"https://api.telegram.org/bot{token}/sendMessage",
-               data={"chat_id": chat, "text": text, "parse_mode": "HTML",
-                     "disable_web_page_preview": "false"}, timeout=20)
+        r = S.post(f"https://api.telegram.org/bot{token.strip()}/sendMessage",
+                   data={"chat_id": chat.strip(), "text": text, "parse_mode": "HTML",
+                         "disable_web_page_preview": "false"}, timeout=20)
+        if r.status_code != 200:
+            print(f"telegram error: HTTP {r.status_code} {r.text[:300]}", file=sys.stderr)
+        else:
+            print("telegram: sent")
     except requests.RequestException as e:
         print("telegram error:", e, file=sys.stderr)
     time.sleep(1)
@@ -193,11 +197,10 @@ def zida_list(url_tpl):
             meta[m.group(2)] = {"m2": int(m.group(1)), "price": int(m.group(4)),
                                 "addr": addr.group(1) if addr else ""}
         for m in ZIDA_URL_RE.finditer(h):
-            if m.group(2) in meta:
-                meta[m.group(2)]["url"] = "https://www.4zida.rs" + m.group(1)
-        for k, v in meta.items():
-            if "url" in v:
-                out[k] = v
+            rid = m.group(2)
+            info = out.get(rid) or dict(meta.get(rid, {}))
+            info["url"] = "https://www.4zida.rs" + m.group(1)
+            out[rid] = info
         time.sleep(1.5)
     return out
 
@@ -213,11 +216,20 @@ def zida_detail(info):
     k = plain.find('"text":"')
     desc = plain[k + 8: plain.find('"}', k)] if k >= 0 else ""
     slug = info["url"].split("/")[4] if info["url"].count("/") >= 4 else ""
+    title = htmllib.unescape(t.group(1)) if t else ""
+    m2 = info.get("m2")
+    if m2 is None:
+        mm = re.search(r"(\d+)\s*m2", md)
+        m2 = int(mm.group(1)) if mm else None
+    price = info.get("price")
+    if price is None:
+        pm = re.search(r"([\d.]+)\s*€", title)
+        price = num(pm.group(1)) if pm else None
     return {
-        "title": htmllib.unescape(t.group(1)) if t else "",
+        "title": title,
         "text": md + " " + desc,
-        "m2": info.get("m2"),
-        "price": info.get("price"),
+        "m2": m2,
+        "price": price,
         "loc": (info.get("addr") or "") + " · " + slug.replace("-", " "),
         "heating": "",
         "furn": "prazno" if "Prazno" in md else ("polunamešteno" if "Polunamešteno" in md else
@@ -358,12 +370,18 @@ def main():
                + [(n, k, u, zida_list, "zida") for n, k, u in ZIDA_SEARCHES]
                + [(n, k, u, nek_list, "nek") for n, k, u in NEK_SEARCHES])
 
+    only = [x.strip() for x in os.environ.get("SOURCES", "halo,zida,nek").split(",") if x.strip()]
+    sources = [x for x in sources if x[4] in only]
+    failed_first = []
+
     for name, kind, url_tpl, lister, site in sources:
         print(f"== {name}")
         listing = lister(url_tpl)
         if listing is None or len(listing) == 0:
             fails[name] = fails.get(name, 0) + 1
             print(f"  source failed ({fails[name]} in a row)")
+            if name not in seen:
+                failed_first.append(name)
             if fails[name] == FAIL_ALERT_AFTER:
                 tg(f"⚠️ Монитор: источник <b>{esc(name)}</b> не отвечает уже {FAIL_ALERT_AFTER} запусков подряд "
                    f"(возможно, сайт блокирует GitHub или поменял вёрстку).")
@@ -388,7 +406,7 @@ def main():
                         d = halo_detail(url)
                     elif site == "zida":
                         # быстрый префильтр по данным из выдачи
-                        if info.get("m2", 0) < MIN_M2 or BAD_AREA_RE.search(url):
+                        if (info.get("m2") is not None and info["m2"] < MIN_M2) or BAD_AREA_RE.search(url):
                             continue
                         d = zida_detail(info)
                     else:
@@ -412,6 +430,9 @@ def main():
         merged = list(listing.keys()) + [i for i in seen.get(name, []) if i not in listing]
         seen[name] = merged[:MAX_SEEN_PER_SOURCE]
 
+    if failed_first and (seeded_now or not seen):
+        tg("⚠️ Монитор: эти источники не открылись (сайт не пускает этот компьютер/сервер): "
+           + ", ".join(esc(x) for x in failed_first))
     if seeded_now:
         tg("🤖 Монитор аренды запущен. Запомнил текущие объявления (о них писать не буду):\n"
            + "\n".join(esc(s) for s in seeded_now)
