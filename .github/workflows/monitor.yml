@@ -30,6 +30,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          SOURCES: zida            # Halo и nekretnine блокируют серверы GitHub (403) — их проверяет компьютер дома
         run: python monitor.py
 
       - name: Save state
