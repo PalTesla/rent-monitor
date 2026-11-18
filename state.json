@@ -2064,7 +2064,6 @@
 "6a89b340f66afa80a702c4c5",
 "6a1efb2e26fc425abf0cbd8b",
 "6ae8ca5efc996edd740a2a62",
-"6a02064a784438765b043e57",
 "69f97c05a4adb98c030feb3c",
 "69cd4a5691ab2c5ffb03fead",
 "69af0601cc1fa42e9903f3ee",
@@ -2072,6 +2071,7 @@
 "68c92fee1a4076151b09eeb3",
 "680949e6e8f16401e90ffe3a",
 "66e2e9e8accfea08c904cff1",
+"6a02064a784438765b043e57",
 "6afc2310bce590651a0c0dc3",
 "6ad5bb9d0309490dce03cb4b",
 "6af5b9f31c23ecd4d80bdfd2",
@@ -2106,7 +2106,7 @@
 ]
 },
 "fails": {
-"4zida-stanovi": 0,
+"4zida-stanovi": 1,
 "4zida-kuce": 0
 }
 }
